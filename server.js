@@ -1,9 +1,14 @@
-const express = require('express');
-const multer = require('multer');
-const { GoogleGenAI, Type } = require('@google/genai');
-const path = require('path');
+import express from 'express';
+import multer from 'multer';
+import { GoogleGenAI, Type } from '@google/genai';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
+// Hostinger provides the port via process.env.PORT, defaults to 3000 locally
 const port = process.env.PORT || 3000;
 
 // Initialize Google Gen AI SDK (picks up GEMINI_API_KEY environment variable)
@@ -18,7 +23,7 @@ const upload = multer({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve frontend HTML page
+// Serve frontend HTML page from the public directory
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -110,6 +115,7 @@ app.post('/api/grade', upload.fields([
   }
 });
 
+// CRITICAL: Bind to '0.0.0.0' so Hostinger's proxy routing can access the application container
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 });
