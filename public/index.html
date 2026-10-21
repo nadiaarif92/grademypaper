@@ -7,59 +7,28 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans min-p-6">
-    <div class="max-w-4xl mx-auto p-6 bg-white shadow-lg rounded-xl my-10">
+    <div class="max-w-3xl mx-auto p-6 bg-white shadow-lg rounded-xl my-10">
         <header class="border-b pb-4 mb-6">
-            <h1 class="text-3xl font-extrabold text-blue-600">🎓 Multi-Board AI Exam Grader</h1>
-            <p class="text-sm text-slate-500 mt-1">Upload question papers, marking schemes, and student answers for precise AI evaluation.</p>
+            <h1 class="text-3xl font-extrabold text-blue-600">🎓 Instant AI Exam Grader</h1>
+            <p class="text-sm text-slate-500 mt-1">Upload your solved answer paper. Gemini will auto-detect the exam details, search for the marking scheme online, and grade it.</p>
         </header>
 
         <form id="gradingForm" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-sm font-medium mb-1">Exam Board</label>
-                    <select name="board" id="board" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                        <option value="Cambridge (CAIE)">Cambridge (CAIE)</option>
-                        <option value="Edexcel (Pearson)">Edexcel (Pearson)</option>
-                        <option value="AQA">AQA</option>
-                        <option value="IB (International Baccalaureate)">IB</option>
-                        <option value="AP (Advanced Placement)">AP</option>
-                        <option value="Other Board">Other</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Grade / Level</label>
-                    <input type="text" name="grade" id="grade" placeholder="e.g. Year 11, Grade 10, A-Level" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Subject</label>
-                    <input type="text" name="subject" id="subject" placeholder="e.g. Physics, Mathematics" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border">
-                <div>
-                    <label class="block text-sm font-semibold mb-1">1. Question Paper (PDF/Img)</label>
-                    <input type="file" name="questionPaper" accept=".pdf,image/*" required class="text-xs w-full text-slate-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold mb-1">2. Marking Scheme (PDF/Img)</label>
-                    <input type="file" name="markingScheme" accept=".pdf,image/*" required class="text-xs w-full text-slate-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold mb-1">3. Student Solution (PDF/Img)</label>
-                    <input type="file" name="studentSolution" accept=".pdf,image/*" required class="text-xs w-full text-slate-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                </div>
+            <div class="bg-blue-50 p-6 rounded-xl border border-blue-100 text-center">
+                <label class="block text-base font-bold text-blue-900 mb-2">Upload Student Answer Paper (PDF or Image)</label>
+                <input type="file" name="studentSolution" accept=".pdf,image/*" required class="w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer">
+                <p class="text-xs text-slate-500 mt-2">Ensure paper code, year, and session are visible on the script.</p>
             </div>
 
             <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition duration-200 shadow-md">
-                Evaluate & Generate Marked Report
+                Auto-Detect & Grade Paper
             </button>
         </form>
 
         <!-- Loading State -->
         <div id="loading" class="hidden text-center py-12">
             <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
-            <p class="mt-3 text-slate-600 font-medium">Gemini is analyzing documents and grading script...</p>
+            <p class="mt-3 text-slate-600 font-medium">Scanning paper, searching web for marking scheme, and grading...</p>
         </div>
 
         <!-- Results Display Section -->
@@ -97,14 +66,12 @@
                     body: formData
                 });
 
-                // Read response as text first to safely catch HTML timeout pages from Hostinger
                 const responseText = await response.text();
                 let data;
                 try {
                     data = JSON.parse(responseText);
                 } catch (parseErr) {
-                    // If the server returned HTML (gateway timeout/crash), show a clean message
-                    throw new Error("Server timeout or gateway limit reached. Large PDFs may take too long to process on this hosting plan. Try compressing or shortening the PDFs.");
+                    throw new Error("Server timeout. The file might be too large or complex for this request.");
                 }
 
                 if (!response.ok) throw new Error(data.error || 'Failed to process grading request.');
