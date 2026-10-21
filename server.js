@@ -10,24 +10,20 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Initialize Google Gen AI SDK with environment API key
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Configure multer for temporary file uploads in memory
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit per file
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve frontend HTML page from the public directory
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Helper function to convert buffer to Gemini Part object
 function fileToGenerativePart(buffer, mimeType) {
   return {
     inlineData: {
@@ -37,90 +33,58 @@ function fileToGenerativePart(buffer, mimeType) {
   };
 }
 
-// Helper function to handle 503 high demand retries automatically
-async function generateWithRetry(aiClient, options, retries = 3, delay = 2000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await aiClient.models.generateContent(options);
-    } catch (error) {
-      const errMsg = error.message || '';
-      const isOverloaded = errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('UNAVAILABLE');
-      
-      if (isOverloaded && i < retries - 1) {
-        console.warn(`Model busy (503 High Demand). Retrying attempt ${i + 2} in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // Exponential backoff
-      } else {
-        throw error;
-      }
-    }
-  }
-}
-
-// API Endpoint to process grading using gemini-3.8-flash with auto-retry
-app.post('/api/grade', upload.fields([
-  { name: 'questionPaper', maxCount: 1 },
-  { name: 'markingScheme', maxCount: 1 },
-  { name: 'studentSolution', maxCount: 1 }
-]), async (req, res) => {
+// Single-file endpoint with Google Search grounding
+app.post('/api/grade', upload.single('studentSolution'), async (req, res) => {
   try {
-    const { board, grade, subject } = req.body;
-    const files = req.files;
+    const file = req.file;
 
-    if (!files || !files.questionPaper || !files.markingScheme || !files.studentSolution) {
-      return res.status(400).json({ error: "Please upload all three required files: Question Paper, Marking Scheme, and Student Solution." });
+    if (!file) {
+      return res.status(400).json({ error: "Please upload the student solution file." });
     }
 
-    const qp = files.questionPaper[0];
-    const ms = files.markingScheme[0];
-    const sol = files.studentSolution[0];
-
-    // Build multimodal inputs for Gemini
     const contents = [
-      { text: `You are an expert Chief Examiner and Grader for ${board} examinations. You are assessing a student submission for Grade ${grade}, Subject: ${subject}.` },
-      { text: "Here is the Official Question Paper:" },
-      fileToGenerativePart(qp.buffer, qp.mimetype),
-      { text: "Here is the Official Marking Scheme / Rubric:" },
-      fileToGenerativePart(ms.buffer, ms.mimetype),
-      { text: "Here is the Student's Solution/Attempt:" },
-      fileToGenerativePart(sol.buffer, sol.mimetype),
       { 
-        text: `Please thoroughly evaluate the student's solution against the question paper and marking scheme. 
-        Provide a detailed breakdown question-by-question, awards marks accurately following the marking scheme rules (including method marks 'M', accuracy marks 'A', and independent marks 'B' if applicable), point out errors, and provide constructive feedback for improvement.` 
-      }
+        text: `You are an expert Chief Examiner and Grader. 
+        1. Examine this student's uploaded solution paper. 
+        2. Identify the Exam Board, Subject, Subject Code, Year, and Session from the paper.
+        3. Use Google Search to find the official Question Paper and Marking Scheme for this exact paper online.
+        4. Thoroughly evaluate the student's solution against the official marking scheme you find.` 
+      },
+      fileToGenerativePart(file.buffer, file.mimetype)
     ];
 
-    // Call Gemini with automatic retry wrapper
-    const response = await generateWithRetry(ai, {
+    // Call Gemini with googleSearch tool enabled so it can look up papers dynamically
+    const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: contents,
       config: {
+        tools: [{ googleSearch: {} }], // Enables live internet lookups for marking schemes
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            totalScoreAwarded: { type: Type.NUMBER, description: "Total marks earned by the student" },
-            maxPossibleScore: { type: Type.NUMBER, description: "Total maximum marks possible for the paper" },
-            percentage: { type: Type.NUMBER, description: "Calculated percentage score" },
-            estimatedGrade: { type: Type.STRING, description: "Estimated grade based on standard boundaries" },
-            generalFeedback: { type: Type.STRING, description: "Overall summary feedback on student performance" },
+            detectedExamInfo: { type: Type.STRING, description: "Board, Subject, and Code identified from the paper" },
+            totalScoreAwarded: { type: Type.NUMBER },
+            maxPossibleScore: { type: Type.NUMBER },
+            percentage: { type: Type.NUMBER },
+            estimatedGrade: { type: Type.STRING },
+            generalFeedback: { type: Type.STRING },
             questionBreakdown: {
               type: Type.ARRAY,
-              description: "Detailed step-by-step marking breakdown per question or sub-question",
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  questionNumber: { type: Type.STRING, description: "e.g., 1a, 2(b)(i)" },
+                  questionNumber: { type: Type.STRING },
                   marksAwarded: { type: Type.NUMBER },
                   maxMarks: { type: Type.NUMBER },
                   isCorrect: { type: Type.BOOLEAN },
-                  examinerNotes: { type: Type.STRING, description: "Specific reasoning for marks given or deducted based on marking scheme" }
+                  examinerNotes: { type: Type.STRING }
                 },
                 required: ["questionNumber", "marksAwarded", "maxMarks", "isCorrect", "examinerNotes"]
               }
             }
           },
-          required: ["totalScoreAwarded", "maxPossibleScore", "percentage", "estimatedGrade", "generalFeedback", "questionBreakdown"]
+          required: ["detectedExamInfo", "totalScoreAwarded", "maxPossibleScore", "percentage", "estimatedGrade", "generalFeedback", "questionBreakdown"]
         }
       }
     });
@@ -138,11 +102,8 @@ app.post('/api/grade', upload.fields([
   }
 });
 
-// CRITICAL: Bind to '0.0.0.0' and set server timeouts to handle large PDF processing
 const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 });
-
-// Extend timeout to 2 minutes (120000ms) to prevent Hostinger gateway drops during AI evaluation
 server.timeout = 120000;
 server.keepAliveTimeout = 120000;
