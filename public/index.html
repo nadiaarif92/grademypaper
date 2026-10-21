@@ -96,7 +96,16 @@
                     method: 'POST',
                     body: formData
                 });
-                const data = await response.json();
+
+                // Read response as text first to safely catch HTML timeout pages from Hostinger
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseErr) {
+                    // If the server returned HTML (gateway timeout/crash), show a clean message
+                    throw new Error("Server timeout or gateway limit reached. Large PDFs may take too long to process on this hosting plan. Try compressing or shortening the PDFs.");
+                }
 
                 if (!response.ok) throw new Error(data.error || 'Failed to process grading request.');
 
