@@ -37,7 +37,27 @@ function fileToGenerativePart(buffer, mimeType) {
   };
 }
 
-// API Endpoint to process grading using gemini-3.8-flash
+// Helper function to handle 503 high demand retries automatically
+async function generateWithRetry(aiClient, options, retries = 3, delay = 2000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await aiClient.models.generateContent(options);
+    } catch (error) {
+      const errMsg = error.message || '';
+      const isOverloaded = errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('UNAVAILABLE');
+      
+      if (isOverloaded && i < retries - 1) {
+        console.warn(`Model busy (503 High Demand). Retrying attempt ${i + 2} in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
+// API Endpoint to process grading using gemini-3.8-flash with auto-retry
 app.post('/api/grade', upload.fields([
   { name: 'questionPaper', maxCount: 1 },
   { name: 'markingScheme', maxCount: 1 },
@@ -70,8 +90,8 @@ app.post('/api/grade', upload.fields([
       }
     ];
 
-    // Call Gemini using Structured JSON Schema output with gemini-3.8-flash
-    const response = await ai.models.generateContent({
+    // Call Gemini with automatic retry wrapper
+    const response = await generateWithRetry(ai, {
       model: 'gemini-3.8-flash',
       contents: contents,
       config: {
