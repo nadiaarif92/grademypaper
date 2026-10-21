@@ -138,7 +138,11 @@ app.post('/api/grade', upload.fields([
   }
 });
 
-// CRITICAL: Bind to '0.0.0.0' for Hostinger proxy routing compatibility
-app.listen(port, '0.0.0.0', () => {
+// CRITICAL: Bind to '0.0.0.0' and set server timeouts to handle large PDF processing
+const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 });
+
+// Extend timeout to 2 minutes (120000ms) to prevent Hostinger gateway drops during AI evaluation
+server.timeout = 120000;
+server.keepAliveTimeout = 120000;
