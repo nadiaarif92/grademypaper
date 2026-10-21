@@ -70,9 +70,9 @@ app.post('/api/grade', upload.fields([
       }
     ];
 
-    // Call Gemini using Structured JSON Schema output with the correct stable model
+    // Call Gemini using Structured JSON Schema output with the correct active model
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: contents,
       config: {
         responseMimeType: 'application/json',
