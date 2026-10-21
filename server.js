@@ -8,11 +8,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-// Hostinger provides the port via process.env.PORT, defaults to 3000 locally
 const port = process.env.PORT || 3000;
 
-// Initialize Google Gen AI SDK (picks up GEMINI_API_KEY environment variable)
-// Explicitly pass the environment variable to the SDK
+// Initialize Google Gen AI SDK with environment API key
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // Configure multer for temporary file uploads in memory
@@ -72,9 +70,9 @@ app.post('/api/grade', upload.fields([
       }
     ];
 
-   // Call Gemini using Structured JSON Schema output for precise parsing
+    // Call Gemini using Structured JSON Schema output with the correct stable model
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash', // Updated to the current stable multimodal model
+      model: 'gemini-2.5-flash',
       contents: contents,
       config: {
         responseMimeType: 'application/json',
@@ -116,7 +114,7 @@ app.post('/api/grade', upload.fields([
   }
 });
 
-// CRITICAL: Bind to '0.0.0.0' so Hostinger's proxy routing can access the application container
+// Bind to '0.0.0.0' for Hostinger proxy routing compatibility
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 });
