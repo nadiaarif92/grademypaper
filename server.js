@@ -12,7 +12,8 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Initialize Google Gen AI SDK (picks up GEMINI_API_KEY environment variable)
-const ai = new GoogleGenAI();
+// Explicitly pass the environment variable to the SDK
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // Configure multer for temporary file uploads in memory
 const upload = multer({ 
