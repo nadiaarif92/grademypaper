@@ -37,7 +37,7 @@ function fileToGenerativePart(buffer, mimeType) {
   };
 }
 
-// API Endpoint to process grading
+// API Endpoint to process grading using gemini-3.8-flash
 app.post('/api/grade', upload.fields([
   { name: 'questionPaper', maxCount: 1 },
   { name: 'markingScheme', maxCount: 1 },
@@ -70,7 +70,7 @@ app.post('/api/grade', upload.fields([
       }
     ];
 
-    // Call Gemini using Structured JSON Schema output with the correct active model
+    // Call Gemini using Structured JSON Schema output with gemini-3.8-flash
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: contents,
@@ -105,6 +105,10 @@ app.post('/api/grade', upload.fields([
       }
     });
 
+    if (!response || !response.text) {
+      throw new Error("Received an empty response from Gemini API.");
+    }
+
     const resultJson = JSON.parse(response.text);
     res.json({ success: true, evaluation: resultJson });
 
@@ -114,7 +118,7 @@ app.post('/api/grade', upload.fields([
   }
 });
 
-// Bind to '0.0.0.0' for Hostinger proxy routing compatibility
+// CRITICAL: Bind to '0.0.0.0' for Hostinger proxy routing compatibility
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 });
